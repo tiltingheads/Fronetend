@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { registerUser, addPet, fetchBreeds } from "../api";
 import axios from "axios";
 
 const PetProfileRegistration = () => {
   const [uploadingImg, setUploadingImg] = useState(false);
+  const [newPet, setNewPet] = useState()
 
   const [ownerData, setOwnerData] = useState({
     username: "",
@@ -19,11 +21,28 @@ const PetProfileRegistration = () => {
       weight: "",
       gender: "",
       temperament: "",
-      medicalHistory: "",
+      medicalHistory: [],
       activities: "",
       photo: null,
     },
   ]);
+
+  const [breeds, setBreeds] = useState([]);
+  const [filteredBreeds, setFilteredBreeds] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Fetch breeds on component mount
+  useEffect(() => {
+    const getBreeds = async () => {
+      try {
+        const response = await fetchBreeds();
+        setBreeds(response.data.map((breed) => breed.name));
+      } catch (error) {
+        console.error("Error fetching breeds:", error);
+      }
+    };
+    getBreeds();
+  }, []);
 
   const handleOwnerChange = (e) => {
     const { name, value } = e.target;
@@ -33,10 +52,20 @@ const PetProfileRegistration = () => {
   const handlePetChange = (index, e) => {
     const { name, value, type, files } = e.target;
     const updatedPets = [...pets];
-    if (type === "file") {
+
+    if (type === "file" && name === "photo") {
       handleImageUpload(e, index);
+    } else if (name === "medicalHistory") {
+      handleMedicalHistoryUpload(index, files);
     } else {
       updatedPets[index][name] = value;
+      if (name === "breed") {
+        const inputValue = value.toLowerCase();
+        setFilteredBreeds(
+          breeds.filter((breed) => breed.toLowerCase().includes(inputValue))
+        );
+        setShowSuggestions(true);
+      }
     }
     setPets(updatedPets);
   };
@@ -67,44 +96,14 @@ const PetProfileRegistration = () => {
     }
   };
 
-  const addPet = () => {
-    setPets([
-      ...pets,
-      {
-        petName: "",
-        breed: "",
-        dob: "",
-        weight: "",
-        gender: "",
-        temperament: "",
-        medicalHistory: "",
-        activities: "",
-        photo: null,
-      },
-    ]);
-  };
-
-  const removePet = (index) => {
-    const updatedPets = [...pets];
-    updatedPets.splice(index, 1);
-    setPets(updatedPets);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      // Step 1: Register the owner
-      const ownerResponse = await axios.post(
-        "https://backend-eh2a.onrender.com/api/register",
-        { ...ownerData }
-      );
+      const ownerResponse = await registerUser(ownerData);
+      const ownerId = ownerResponse.data.ownerId;
 
-      const ownerId = ownerResponse.data.ownerId; // Get the owner ID from the response
-
-      // Step 2: Add pets to the registered owner
       for (const pet of pets) {
-        await axios.post(`https://backend-eh2a.onrender.com/api/${ownerId}/pets/add`, { pet });
+        await addPet(ownerId, pet);
       }
 
       alert("Owner and pets registered successfully!");
@@ -114,7 +113,44 @@ const PetProfileRegistration = () => {
       alert("There was an issue with the registration process.");
     }
   };
-
+  const handleMedicalHistoryUpload = async (event) => {
+    const files = event.target.files;
+    const medicalHistoryUrls = [];
+  
+    for (const file of files) {
+      if (file.size > 1048576) {
+        alert("File is too big. Each file must be less than 1MB.");
+        continue;
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "tiltingheads");
+      formData.append("cloud_name", "ddwu5ov3qr");
+  
+      try {
+        setUploadingImg(true);
+        const res = await axios.post(
+          "https://api.cloudinary.com/v1_1/dwu5ov3qr/image/upload",
+          formData
+        );
+        medicalHistoryUrls.push(res.data.secure_url);
+      } catch (error) {
+        console.error("Error uploading medical report:", error);
+      }
+    }
+  
+    setNewPet((prevPet) => ({
+      ...prevPet,
+      medicalHistory: [...prevPet.medicalHistory, ...medicalHistoryUrls],
+    }));
+    setUploadingImg(false);
+  };
+  const removePet = (index) => {
+    const updatedPets = [...pets];
+    updatedPets.splice(index, 1);
+    setPets(updatedPets);
+  };
+  
   return (
     <div className="flex justify-center items-center min-h-screen bg-[#dde5f4] p-2">
       <form
@@ -133,7 +169,6 @@ const PetProfileRegistration = () => {
         {/* Owner Info */}
         <fieldset className="border border-[#d1d5db] rounded-lg p-4 space-y-4">
           <legend className="text-lg font-semibold text-[#4d4d4d] px-2">
-            <ion-icon name="person-outline" class="mr-2"></ion-icon>
             Owner Information
           </legend>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -187,7 +222,6 @@ const PetProfileRegistration = () => {
         {/* Pets Info */}
         <fieldset className="border border-[#d1d5db] rounded-lg p-4 space-y-4">
           <legend className="text-lg font-semibold text-[#4d4d4d] px-2">
-            <ion-icon name="paw-outline" class="mr-2"></ion-icon>
             Pet Information
           </legend>
           {pets.map((pet, index) => (
@@ -204,17 +238,41 @@ const PetProfileRegistration = () => {
                     onChange={(e) => handlePetChange(index, e)}
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-[#4d4d4d] text-sm font-semibold">Breed</label>
-                  <input
-                    type="text"
-                    name="breed"
-                    placeholder="Enter breed"
-                    className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
-                    value={pet.breed}
-                    onChange={(e) => handlePetChange(index, e)}
-                  />
-                </div>
+                <div className="flex flex-col gap-2 relative">
+  <label className="text-[#4d4d4d] text-sm font-semibold">Breed</label>
+  <input
+    type="text"
+    name="breed"
+    placeholder="Enter breed"
+    className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
+    value={pet.breed}
+    onChange={(e) => handlePetChange(index, e)}
+    onFocus={() => setShowSuggestions(true)} // Show suggestions when focused
+    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Hide suggestions on blur (delayed to allow selection)
+  />
+  {showSuggestions && filteredBreeds.length > 0 && (
+    <ul
+      className="absolute z-10 bg-white border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto w-full"
+      style={{ top: "100%", left: 0 }}
+    >
+      {filteredBreeds.map((breed, i) => (
+        <li
+          key={i}
+          className="p-2 hover:bg-gray-100 cursor-pointer"
+          onMouseDown={() => {
+            const updatedPets = [...pets];
+            updatedPets[index].breed = breed;
+            setPets(updatedPets);
+            setShowSuggestions(false); // Hide suggestions on selection
+          }}
+        >
+          {breed}
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
                 <div className="flex flex-col gap-2">
                   <label className="text-[#4d4d4d] text-sm font-semibold">Date of Birth</label>
                   <input
@@ -261,26 +319,6 @@ const PetProfileRegistration = () => {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-[#4d4d4d] text-sm font-semibold">Medical History</label>
-                  <textarea
-                    name="medicalHistory"
-                    placeholder="e.g., Vaccinations, Allergies"
-                    className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
-                    value={pet.medicalHistory}
-                    onChange={(e) => handlePetChange(index, e)}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-[#4d4d4d] text-sm font-semibold">Favorite Activities</label>
-                  <textarea
-                    name="activities"
-                    placeholder="e.g., Fetch, Swimming"
-                    className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
-                    value={pet.activities}
-                    onChange={(e) => handlePetChange(index, e)}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
                   <label className="text-[#4d4d4d] text-sm font-semibold">
                     Upload Pet Photo (JPG, PNG)
                   </label>
@@ -288,6 +326,19 @@ const PetProfileRegistration = () => {
                     type="file"
                     name="photo"
                     accept="image/*"
+                    className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
+                    onChange={(e) => handlePetChange(index, e)}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[#4d4d4d] text-sm font-semibold">
+                    Upload Medical Reports (JPG, PNG)
+                  </label>
+                  <input
+                    type="file"
+                    name="medicalHistory"
+                    accept="image/*"
+                    multiple
                     className="outline-none border border-[#d1d5db] p-2 rounded-md text-sm"
                     onChange={(e) => handlePetChange(index, e)}
                   />
