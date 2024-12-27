@@ -31,11 +31,9 @@ const AboutMe = () => {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem("token");
-        console.log(token);
         const response = await axios.get("https://backend-eh2a.onrender.com/api/profile", {
           headers: {
-            Authorization: `Bearer ${token}`
-
+            Authorization: `Bearer ${token}`,
           },
         });
         setProfile(response.data);
