@@ -5,7 +5,8 @@ import axios from "axios";
 const PetProfileRegistration = () => {
   const [uploadingImg, setUploadingImg] = useState(false);
   const [newPet, setNewPet] = useState()
-
+ 
+  
   const [ownerData, setOwnerData] = useState({
     username: "",
     password: "",
@@ -113,8 +114,7 @@ const PetProfileRegistration = () => {
       alert("There was an issue with the registration process.");
     }
   };
-  const handleMedicalHistoryUpload = async (event) => {
-    const files = event.target.files;
+  const handleMedicalHistoryUpload = async (index, files) => {
     const medicalHistoryUrls = [];
   
     for (const file of files) {
@@ -139,12 +139,16 @@ const PetProfileRegistration = () => {
       }
     }
   
-    setNewPet((prevPet) => ({
-      ...prevPet,
-      medicalHistory: [...prevPet.medicalHistory, ...medicalHistoryUrls],
-    }));
+    const updatedPets = [...pets];
+    updatedPets[index].medicalHistory = [
+      ...(updatedPets[index].medicalHistory || []),
+      ...medicalHistoryUrls,
+    ];
+    setPets(updatedPets);
     setUploadingImg(false);
   };
+  
+
   const removePet = (index) => {
     const updatedPets = [...pets];
     updatedPets.splice(index, 1);

@@ -2,12 +2,12 @@ import axios from 'axios';
 
 // General API for regular users
 const API = axios.create({
-  baseURL: `${process.env.REACT_APP_API_BASE_URL}/api`,
+  baseURL: `https://backend-eh2a.onrender.com/api`,
 });
 
 // Admin API for admin-specific routes
 const AdminAPI = axios.create({
-  baseURL: `${process.env.REACT_APP_API_BASE_URL}/admin`,
+  baseURL: `https://backend-eh2a.onrender.com/admin`,
 });
 
 // Attach JWT token to request headers for both APIs
